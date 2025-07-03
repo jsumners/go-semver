@@ -13,6 +13,17 @@ type Version struct {
 	major int
 	minor int
 	patch int
+
+	/* We need a way to differentiate the basic zero value of components from
+	a zero value read from a provided version string.
+	*/
+	// majorParsed indicates the value of major was parsed from the version string.
+	majorParsed bool
+	// minorParsed indicates the value of minor was parsed from the version string.
+	minorParsed bool
+	// patchParsed indicates the value of patch was parsed from the version string.
+	patchParsed bool
+
 	pre   string
 	build string
 }
@@ -93,17 +104,33 @@ func VersionFromBytes(input []byte) (*Version, error) {
 		}
 	}
 
-	majorInt, _ := strconv.Atoi(string(major))
-	minorInt, _ := strconv.Atoi(string(minor))
-	patchInt, _ := strconv.Atoi(string(patch))
-
-	return &Version{
-		major: majorInt,
-		minor: minorInt,
-		patch: patchInt,
+	version := &Version{
 		pre:   string(pre),
 		build: strings.TrimSpace(string(build)),
-	}, nil
+	}
+	if len(major) > 0 {
+		majorInt, _ := strconv.Atoi(string(major))
+		version.major = majorInt
+		version.majorParsed = true
+	} else {
+		version.major = 0
+	}
+	if len(minor) > 0 {
+		minorInt, _ := strconv.Atoi(string(minor))
+		version.minor = minorInt
+		version.minorParsed = true
+	} else {
+		version.minor = 0
+	}
+	if len(patch) > 0 {
+		patchInt, _ := strconv.Atoi(string(patch))
+		version.patch = patchInt
+		version.patchParsed = true
+	} else {
+		version.patch = 0
+	}
+
+	return version, nil
 }
 
 func (v *Version) String() string {
