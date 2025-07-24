@@ -113,7 +113,18 @@ func RangeFromBytes(input []byte) (*Range, error) {
 	for _, set := range setsToParse {
 		set = bytes.TrimSpace(set)
 
-		range1, range2, found := bytes.Cut(set, []byte(" "))
+		range1, range2, found := bytes.Cut(set, []byte(" - "))
+		if found == true {
+			// We have a hyphen range, e.g. `1.0.0 - 2.0.0`.
+			comparatorSet, err := parseHyphenRange(range1, range2)
+			if err != nil {
+				return nil, err
+			}
+			comparators = append(comparators, comparatorSet)
+			continue
+		}
+
+		range1, range2, found = bytes.Cut(set, []byte(" "))
 		if found == true {
 			// We have a basic range separated by a space, e.g. `1.0.0 2.0.0`.
 			comparatorSet, err := parseBasicRange(range1, range2)
@@ -122,12 +133,6 @@ func RangeFromBytes(input []byte) (*Range, error) {
 			}
 			comparators = append(comparators, comparatorSet)
 			continue
-		}
-
-		range1, range2, found = bytes.Cut(set, []byte(" - "))
-		if found == true {
-			// We have a hyphen range, e.g. `1.0.0 - 2.0.0`.
-			return nil, errors.New("not implemented")
 		}
 
 		// We have a simple range, e.g. `=1.0.0`.
@@ -139,6 +144,31 @@ func RangeFromBytes(input []byte) (*Range, error) {
 	}
 
 	return &Range{comparators: comparators}, nil
+}
+
+func parseHyphenRange(r1 []byte, r2 []byte) (ComparatorSet, error) {
+	c1, err := parseComparator(bytes.TrimSpace(r1))
+	if err != nil {
+		return ComparatorSet{}, nil
+	}
+
+	c2, err := parseComparator(bytes.TrimSpace(r2))
+	if err != nil {
+		return ComparatorSet{}, nil
+	}
+
+	c1.operator = OperatorGreaterThanEqual
+	if c2.version.patchParsed == true {
+		c2.operator = OperatorLessThanEqual
+	} else if c2.version.minorParsed == true {
+		c2.version.minor += 1
+		c2.operator = OperatorLessThan
+	} else {
+		c2.version.major += 1
+		c2.operator = OperatorLessThan
+	}
+
+	return ComparatorSet{c1, c2}, nil
 }
 
 func parseBasicRange(r1 []byte, r2 []byte) (ComparatorSet, error) {

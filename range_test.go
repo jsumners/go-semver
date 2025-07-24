@@ -36,6 +36,38 @@ func TestRange_RangeFromString(t *testing.T) {
 			input:    ">1 || >2 || <5",
 			expected: ">1.0.0 || >2.0.0 || <5.0.0",
 		},
+
+		// Hyphen ranges
+		{
+			title:    "hyphen: basic inclusive set",
+			input:    "1.2.3 - 2.3.4",
+			expected: ">=1.2.3 <=2.3.4",
+		},
+		{
+			title:    "hyphen: partial first (major & minor)",
+			input:    "1.2 - 2.3.4",
+			expected: ">=1.2.0 <=2.3.4",
+		},
+		{
+			title:    "hyphen: partial first (major only)",
+			input:    "1 - 2.3.4",
+			expected: ">=1.0.0 <=2.3.4",
+		},
+		{
+			title:    "hyphen: partial second (major & minor)",
+			input:    "1.2.3 - 2.3",
+			expected: ">=1.2.3 <2.4.0",
+		},
+		{
+			title:    "hyphen: partial second (major only)",
+			input:    "1.2.3 - 2",
+			expected: ">=1.2.3 <3.0.0",
+		},
+		{
+			title:    "hyphen: both partial (minor only)",
+			input:    "1 - 2",
+			expected: ">=1.0.0 <3.0.0",
+		},
 	}
 
 	for _, testCase := range testCases {
