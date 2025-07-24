@@ -93,10 +93,10 @@ func VersionFromBytes(input []byte) (*Version, error) {
 		}
 
 		if c == dash ||
-				c == dot || // since we are just stringifying any pre or build tags, include dot
-				(isIntegerChar(b) == true) || // [0-9]
-				(isCapitalChar(b) == true) || // [A-Z]
-				(isLowerChar(b) == true) { // [a-z]
+			c == dot || // since we are just stringifying any pre or build tags, include dot
+			(isIntegerChar(b) == true) || // [0-9]
+			(isCapitalChar(b) == true) || // [A-Z]
+			(isLowerChar(b) == true) { // [a-z]
 			if parsing == parsingPre {
 				pre = append(pre, b)
 				continue

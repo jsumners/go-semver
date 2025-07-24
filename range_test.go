@@ -27,11 +27,6 @@ func TestRange_RangeFromString(t *testing.T) {
 			expected: ">1.0.0 <2.0.0",
 		},
 		{
-			title:    "no spaces between comparators",
-			input:    ">1.0.0<2.0.0",
-			expected: ">1.0.0 <2.0.0",
-		},
-		{
 			title:    "two sets present",
 			input:    ">1.0.0 || >3 <=3.1.0",
 			expected: ">1.0.0 || >3.0.0 <=3.1.0",

@@ -113,59 +113,73 @@ func RangeFromBytes(input []byte) (*Range, error) {
 	for _, set := range setsToParse {
 		set = bytes.TrimSpace(set)
 
-		parsingVersion := false
-		comparatorSet := ComparatorSet{}
-		comparator := newComparator()
-		for i := 0; i < len(set); i += 1 {
-			b := set[i]
-			if isAlphaChar(b) == true {
-				return nil, fmt.Errorf("%w: `%s`", ErrRangeAlpha, input)
-			}
-
-			if isOperatorChar(b) && parsingVersion == false {
-				comparator.operatorBytes = append(comparator.operatorBytes, b)
-				continue
-			} else if isOperatorChar(b) && parsingVersion == true {
-				// The first comparator has been parsed. For example, in the range
-				// `>1.0.0 <=1.9.0`, at this point ">1.0.0" has been parsed, and we
-				// need to start parsing "<=1.9.0".
-				comparatorSet.one = comparator
-				comparator = newComparator()
-				comparator.operatorBytes = append(comparator.operatorBytes, b)
-				parsingVersion = false
-				continue
-			}
-
-			comparator.versionBytes = append(comparator.versionBytes, b)
-			parsingVersion = true
-		}
-
-		if comparatorSet.one == nil {
-			// We parsed through the whole set and never assigned a comparator.
-			// Thus, it must have been a single comparator, e.g. `>=1.2.3`.
-			// Therefore, we must assign it.
-			comparatorSet.one = comparator
-		} else if comparatorSet.two == nil {
-			comparatorSet.two = comparator
-		}
-
-		if comparatorSet.one != nil {
-			err := finalizeComparator(comparatorSet.one)
+		range1, range2, found := bytes.Cut(set, []byte(" "))
+		if found == true {
+			// We have a basic range separated by a space, e.g. `1.0.0 2.0.0`.
+			comparatorSet, err := parseBasicRange(range1, range2)
 			if err != nil {
 				return nil, err
 			}
-		}
-		if comparatorSet.two != nil {
-			err := finalizeComparator(comparatorSet.two)
-			if err != nil {
-				return nil, err
-			}
+			comparators = append(comparators, comparatorSet)
+			continue
 		}
 
-		comparators = append(comparators, comparatorSet)
+		range1, range2, found = bytes.Cut(set, []byte(" - "))
+		if found == true {
+			// We have a hyphen range, e.g. `1.0.0 - 2.0.0`.
+			return nil, errors.New("not implemented")
+		}
+
+		// We have a simple range, e.g. `=1.0.0`.
+		comparator, err := parseComparator(set)
+		if err != nil {
+			return nil, err
+		}
+		comparators = append(comparators, ComparatorSet{one: comparator})
 	}
 
 	return &Range{comparators: comparators}, nil
+}
+
+func parseBasicRange(r1 []byte, r2 []byte) (ComparatorSet, error) {
+	c1, err := parseComparator(bytes.TrimSpace(r1))
+	if err != nil {
+		return ComparatorSet{}, err
+	}
+
+	c2, err := parseComparator(bytes.TrimSpace(r2))
+	if err != nil {
+		return ComparatorSet{}, err
+	}
+
+	return ComparatorSet{c1, c2}, nil
+}
+
+func parseComparator(r []byte) (*Comparator, error) {
+	comparator := newComparator()
+
+	for i := 0; i < len(r); i += 1 {
+		b := r[i]
+		if isAlphaChar(b) == true {
+			// TODO: handle `x`, `X`, and `*`
+			return nil, fmt.Errorf("%w: `%s`", ErrRangeAlpha, r)
+		}
+
+		if isOperatorChar(b) {
+			comparator.operatorBytes = append(comparator.operatorBytes, b)
+			continue
+		}
+
+		comparator.versionBytes = r[i:]
+		break
+	}
+
+	err := finalizeComparator(comparator)
+	if err != nil {
+		return nil, err
+	}
+
+	return comparator, nil
 }
 
 func finalizeComparator(c *Comparator) error {
