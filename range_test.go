@@ -12,6 +12,11 @@ func TestRange_RangeFromString(t *testing.T) {
 		expected string
 	}{
 		{
+			title:    "simple empty string",
+			input:    "",
+			expected: ">=0.0.0",
+		},
+		{
 			title:    "simple no operator",
 			input:    "1.2.3",
 			expected: "=1.2.3",

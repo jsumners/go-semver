@@ -90,6 +90,23 @@ func RangeFromString(input string) (*Range, error) {
 }
 
 func RangeFromBytes(input []byte) (*Range, error) {
+	if bytes.Equal(input, []byte("")) == true {
+		// An empty string is a special case range that maps
+		// to ">=0.0.0".
+		c := &Comparator{
+			operator: OperatorGreaterThanEqual,
+			version: &Version{
+				majorParsed: true,
+				minorParsed: true,
+				patchParsed: true,
+			},
+			operatorBytes: nil,
+			versionBytes:  nil,
+		}
+		set := ComparatorSet{one: c}
+		return &Range{comparators: []ComparatorSet{set}}, nil
+	}
+
 	setsToParse := bytes.Split(input, []byte("||"))
 
 	comparators := make([]ComparatorSet, 0)
@@ -109,7 +126,9 @@ func RangeFromBytes(input []byte) (*Range, error) {
 				comparator.operatorBytes = append(comparator.operatorBytes, b)
 				continue
 			} else if isOperatorChar(b) && parsingVersion == true {
-				// The first comparator has been parsed.
+				// The first comparator has been parsed. For example, in the range
+				// `>1.0.0 <=1.9.0`, at this point ">1.0.0" has been parsed, and we
+				// need to start parsing "<=1.9.0".
 				comparatorSet.one = comparator
 				comparator = newComparator()
 				comparator.operatorBytes = append(comparator.operatorBytes, b)
