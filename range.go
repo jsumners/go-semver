@@ -56,10 +56,18 @@ func RangeOperatorFromBytes(input []byte) RangeOperator {
 }
 
 type Comparator struct {
-	operator      RangeOperator
-	version       *Version
+	operator RangeOperator
+	version  *Version
+
+	// parsedOperator indicates that we read a set of bytes from the string
+	// that represent the one of the basic operators, e.g. `>=`. We need this
+	// distinction in order to handle x-ranges more effectively.
+	parsedOperator bool
+
+	// operatorBytes is a temporary storage field
 	operatorBytes []byte
-	versionBytes  []byte
+	// versionBytes is a temporary storage field
+	versionBytes []byte
 }
 
 func newComparator() *Comparator {
@@ -135,12 +143,25 @@ func RangeFromBytes(input []byte) (*Range, error) {
 			continue
 		}
 
-		// We have a simple range, e.g. `=1.0.0`.
-		comparator, err := parseComparator(set)
+		// We have a simple range, e.g. `=1.0.0`, or the special "any version"
+		// string (`*`).
+		one, err := parseComparator(set)
 		if err != nil {
 			return nil, err
 		}
-		comparators = append(comparators, ComparatorSet{one: comparator})
+		if one.version.partial == true && one.version.majorParsed == false {
+			// The "any version" x-range case.
+			one.operator = OperatorGreaterThanEqual
+			comparators = append(comparators, ComparatorSet{one: one})
+		} else if one.version.partial {
+			if one.parsedOperator == false {
+				one.operator = OperatorGreaterThanEqual
+			}
+			two := buildSecondComparatorFromPartial(one)
+			comparators = append(comparators, ComparatorSet{one, two})
+		} else {
+			comparators = append(comparators, ComparatorSet{one: one})
+		}
 	}
 
 	return &Range{comparators: comparators}, nil
@@ -157,6 +178,9 @@ func parseHyphenRange(r1 []byte, r2 []byte) (ComparatorSet, error) {
 		return ComparatorSet{}, nil
 	}
 
+	// We don't need to consider `.parsedOperator` here because the hyphen
+	// range doesn't use them. It provides a set of cases that dictate which
+	// operators to apply.
 	c1.operator = OperatorGreaterThanEqual
 	if c2.version.patchParsed == true {
 		c2.operator = OperatorLessThanEqual
@@ -190,8 +214,8 @@ func parseComparator(r []byte) (*Comparator, error) {
 
 	for i := 0; i < len(r); i += 1 {
 		b := r[i]
-		if isAlphaChar(b) == true {
-			// TODO: handle `x`, `X`, and `*`
+
+		if isAlphaChar(b) == true && isXRangeChar(b) == false {
 			return nil, fmt.Errorf("%w: `%s`", ErrRangeAlpha, r)
 		}
 
@@ -216,6 +240,7 @@ func finalizeComparator(c *Comparator) error {
 	if len(c.operatorBytes) > 0 {
 		c.operator = RangeOperatorFromBytes(c.operatorBytes)
 		c.operatorBytes = make([]byte, 0)
+		c.parsedOperator = true
 	}
 	if len(c.versionBytes) > 0 {
 		ver, err := VersionFromBytes(c.versionBytes)
@@ -226,6 +251,20 @@ func finalizeComparator(c *Comparator) error {
 		c.versionBytes = make([]byte, 0)
 	}
 	return nil
+}
+
+// buildSecondComparatorFromPartial is used to build an upper bound comparator
+// from one that has been parsed from a string like `1.x`. In that example,
+// the second comparator should be equal to `<2.0.0`.
+func buildSecondComparatorFromPartial(c1 *Comparator) *Comparator {
+	c2 := &Comparator{operator: OperatorLessThan, version: &Version{}}
+	if c1.version.minorParsed == true {
+		c2.version.major = c1.version.major
+		c2.version.minor = c1.version.minor + 1
+	} else if c1.version.majorParsed == true {
+		c2.version.major = c1.version.major + 1
+	}
+	return c2
 }
 
 func (r *Range) String() string {

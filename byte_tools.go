@@ -6,6 +6,7 @@ const (
 	dash char = 0x2d // -
 	dot       = 0x2e // .
 	plus      = 0x2b // +
+	star      = 0x2a // *
 
 	lessThan    = 0x3c // <
 	equal       = 0x3d // =
@@ -99,4 +100,9 @@ func isLowerChar(i byte) bool {
 func isOperatorChar(i byte) bool {
 	c := char(i)
 	return c == equal || c == lessThan || c == greaterThan
+}
+
+func isXRangeChar(i byte) bool {
+	c := char(i)
+	return c == lowerX || c == capitalX || c == star
 }

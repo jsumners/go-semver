@@ -1,6 +1,7 @@
 package semver
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strconv"
@@ -24,6 +25,10 @@ type Version struct {
 	// patchParsed indicates the value of patch was parsed from the version string.
 	patchParsed bool
 
+	// partial indicates that the version had an "x" or "X" in one of the three
+	// primary positions.
+	partial bool
+
 	pre   string
 	build string
 }
@@ -41,6 +46,10 @@ func VersionFromString(input string) (*Version, error) {
 }
 
 func VersionFromBytes(input []byte) (*Version, error) {
+	if bytes.Equal(bytes.TrimSpace(input), []byte("*")) == true {
+		return &Version{partial: true}, nil
+	}
+
 	parsing := 0
 	major := make([]byte, 0)
 	minor := make([]byte, 0)
@@ -48,7 +57,13 @@ func VersionFromBytes(input []byte) (*Version, error) {
 	pre := make([]byte, 0)
 	build := make([]byte, 0)
 
-	for i := 0; i < len(input); i += 1 {
+	isPartial := true
+	majorParsed := false
+	minorParsed := false
+	patchParsed := false
+
+	strLen := len(input)
+	for i := 0; i < strLen; i += 1 {
 		b := input[i] // current byte
 		c := int(b)   // current byte as a "character" because we can't compare bytes
 
@@ -61,11 +76,44 @@ func VersionFromBytes(input []byte) (*Version, error) {
 			switch parsing {
 			case parsingMajor:
 				major = append(major, b)
+				majorParsed = true
 			case parsingMinor:
 				minor = append(minor, b)
+				minorParsed = true
 			case parsingPatch:
 				patch = append(patch, b)
+				patchParsed = true
+				isPartial = false
 			}
+			continue
+		} else if parsing < parsingPre && (isXRangeChar(b) == true) {
+			switch parsing {
+			case parsingMajor:
+				major = append(major, byte(0))
+				parsing += 3
+			case parsingMinor:
+				minor = append(minor, byte(0))
+				parsing += 2
+			case parsingPatch:
+				patch = append(minor, byte(0))
+				parsing += 1
+			}
+
+			// We need to inspect the next character, if it exits, in order to
+			// prepare our state for the next iteration.
+			if i+1 == strLen {
+				break
+			} else if int(input[i+1]) == dash {
+				// We need to advance the position or else the dash separator will
+				// be included in the pre-release string.
+				i += 1
+			} else if int(input[i+1]) == plus {
+				// We don't advance the position here because our test for build
+				// strings hinges on both the parsing indicator and the presence
+				// of the plus (`+`) character.
+				parsing += 1
+			}
+
 			continue
 		}
 
@@ -105,27 +153,28 @@ func VersionFromBytes(input []byte) (*Version, error) {
 	}
 
 	version := &Version{
-		pre:   string(pre),
-		build: strings.TrimSpace(string(build)),
+		pre:     string(pre),
+		build:   strings.TrimSpace(string(build)),
+		partial: isPartial,
 	}
 	if len(major) > 0 {
 		majorInt, _ := strconv.Atoi(string(major))
 		version.major = majorInt
-		version.majorParsed = true
+		version.majorParsed = majorParsed
 	} else {
 		version.major = 0
 	}
 	if len(minor) > 0 {
 		minorInt, _ := strconv.Atoi(string(minor))
 		version.minor = minorInt
-		version.minorParsed = true
+		version.minorParsed = minorParsed
 	} else {
 		version.minor = 0
 	}
 	if len(patch) > 0 {
 		patchInt, _ := strconv.Atoi(string(patch))
 		version.patch = patchInt
-		version.patchParsed = true
+		version.patchParsed = patchParsed
 	} else {
 		version.patch = 0
 	}
@@ -186,6 +235,14 @@ func (v *Version) Satisfies(r *Range) bool {
 	var result bool
 
 	for _, set := range r.comparators {
+		if result == true {
+			// We've iterated through at least one comparator set and the outcome
+			// was that the version satisfies the range defined by that set. According
+			// to the spec, this means the condition has been satisfied regardless
+			// of what any other set in the range would indicate.
+			break
+		}
+
 		if set.one != nil && set.two != nil {
 			a := inRange(v, set.one)
 			b := inRange(v, set.two)

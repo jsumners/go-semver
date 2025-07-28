@@ -12,6 +12,12 @@ func TestVersion_VersionFromString(t *testing.T) {
 		expected *Version
 	}{
 		{
+			// `*` => `0.0.0`
+			title:    "any version",
+			input:    " * ",
+			expected: &Version{partial: true},
+		},
+		{
 			title: "parses version with pre-release and build",
 			input: "1.2.3-alpha.1+build.2  ", // Spaces are on purpose.
 			expected: &Version{
@@ -28,12 +34,18 @@ func TestVersion_VersionFromString(t *testing.T) {
 		{
 			title:    "parses simple major",
 			input:    "42",
-			expected: &Version{major: 42, majorParsed: true},
+			expected: &Version{major: 42, majorParsed: true, partial: true},
 		},
 		{
-			title:    "parses major.minor",
-			input:    "42.24",
-			expected: &Version{major: 42, minor: 24, majorParsed: true, minorParsed: true},
+			title: "parses major.minor",
+			input: "42.24",
+			expected: &Version{
+				major:       42,
+				minor:       24,
+				majorParsed: true,
+				minorParsed: true,
+				partial:     true,
+			},
 		},
 		{
 			title: "parses a major.minor.patch",
@@ -50,7 +62,7 @@ func TestVersion_VersionFromString(t *testing.T) {
 		{
 			title:    "parses simple major version with pre",
 			input:    "1-pre.1",
-			expected: &Version{major: 1, majorParsed: true, pre: "pre.1"},
+			expected: &Version{major: 1, majorParsed: true, pre: "pre.1", partial: true},
 		},
 
 		// Pre-release examples from spec:
@@ -154,6 +166,90 @@ func TestVersion_VersionFromString(t *testing.T) {
 				minorParsed: true,
 				patchParsed: true,
 				build:       "21AF26D3----117B344092BD",
+			},
+		},
+
+		// x-range versions:
+		{
+			title: "x in patch position",
+			input: "1.1.x",
+			expected: &Version{
+				major:       1,
+				minor:       1,
+				patch:       0,
+				majorParsed: true,
+				minorParsed: true,
+				patchParsed: false,
+				partial:     true,
+			},
+		},
+		{
+			title: "x in minor and patch position",
+			input: "1.x",
+			expected: &Version{
+				major:       1,
+				minor:       0,
+				patch:       0,
+				majorParsed: true,
+				minorParsed: false,
+				patchParsed: false,
+				partial:     true,
+			},
+		},
+		{
+			title: "x in major position",
+			input: "X",
+			expected: &Version{
+				major:       0,
+				minor:       0,
+				patch:       0,
+				majorParsed: false,
+				minorParsed: false,
+				patchParsed: false,
+				partial:     true,
+			},
+		},
+		{
+			title: "x in minor and patch position with pre",
+			input: "1.x-abc",
+			expected: &Version{
+				major:       1,
+				minor:       0,
+				patch:       0,
+				pre:         "abc",
+				majorParsed: true,
+				minorParsed: false,
+				patchParsed: false,
+				partial:     true,
+			},
+		},
+		{
+			title: "x in minor and patch position with build",
+			input: "1.x+abc",
+			expected: &Version{
+				major:       1,
+				minor:       0,
+				patch:       0,
+				build:       "abc",
+				majorParsed: true,
+				minorParsed: false,
+				patchParsed: false,
+				partial:     true,
+			},
+		},
+		{
+			title: "x in minor and patch position with pre and build",
+			input: "1.x-abc+def",
+			expected: &Version{
+				major:       1,
+				minor:       0,
+				patch:       0,
+				pre:         "abc",
+				build:       "def",
+				majorParsed: true,
+				minorParsed: false,
+				patchParsed: false,
+				partial:     true,
 			},
 		},
 	}
@@ -263,7 +359,7 @@ func TestVersion_Satisfies(t *testing.T) {
 		{
 			title:       "or-ed: in range, upper",
 			expected:    true,
-			version:     "0.9.0",
+			version:     "0.8.9",
 			targetRange: "<0.5 || >0.8",
 		},
 		{
@@ -277,6 +373,13 @@ func TestVersion_Satisfies(t *testing.T) {
 			expected:    true,
 			version:     "3",
 			targetRange: "=1.0.0 || =2.0.0 || =3.0.0",
+		},
+		{
+			// `>0.8` expands to `>0.8.0 <0.9.0`
+			title:       "or-ed: not in range, upper",
+			expected:    false,
+			version:     "0.9.0",
+			targetRange: "<0.5 || >0.8",
 		},
 		{
 			title:       "or-ed: none satisfies",

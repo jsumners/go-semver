@@ -32,9 +32,16 @@ func TestRange_RangeFromString(t *testing.T) {
 			expected: ">1.0.0 || >3.0.0 <=3.1.0",
 		},
 		{
+			// This case is made up nonsense. But it has shown to be interesting
+			// while adding support for X-Ranges. The versions qualify as an x-range,
+			// but each is prefixed with an operator that is contrary to what would
+			// be implied by the x-range. The original thinking is that the input
+			// would translate to `>1.0.0 || >2.0.0 || <5.0.0`. Since this is a weird
+			// case, and likely not valid, we have accepted the wacky expansion as
+			// valid and moved on. But this might be a good spot for improvement.
 			title:    "three sets present",
 			input:    ">1 || >2 || <5",
-			expected: ">1.0.0 || >2.0.0 || <5.0.0",
+			expected: ">1.0.0 <2.0.0 || >2.0.0 <3.0.0 || <5.0.0 <6.0.0",
 		},
 
 		// Hyphen ranges
@@ -67,6 +74,33 @@ func TestRange_RangeFromString(t *testing.T) {
 			title:    "hyphen: both partial (minor only)",
 			input:    "1 - 2",
 			expected: ">=1.0.0 <3.0.0",
+		},
+
+		// X ranges
+		{
+			title:    "x-range: any version *",
+			input:    " * ", // spaces are intentional to verify they do not matter
+			expected: ">=0.0.0",
+		},
+		{
+			title:    "x-range: any version empty string",
+			input:    "",
+			expected: ">=0.0.0",
+		},
+		{
+			title:    "x-range: major partial",
+			input:    "1.x",
+			expected: ">=1.0.0 <2.0.0",
+		},
+		{
+			title:    "x-range: minor partial",
+			input:    "1.2.x",
+			expected: ">=1.2.0 <1.3.0",
+		},
+		{
+			title:    "x-range: major only",
+			input:    "1",
+			expected: ">=1.0.0 <2.0.0",
 		},
 	}
 
