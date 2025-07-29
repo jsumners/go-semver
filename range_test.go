@@ -102,6 +102,43 @@ func TestRange_RangeFromString(t *testing.T) {
 			input:    "1",
 			expected: ">=1.0.0 <2.0.0",
 		},
+
+		// Tilde ranges:
+		{
+			title:    "tilde range: major, minor, patch",
+			input:    "~1.2.3",
+			expected: ">=1.2.3 <1.3.0",
+		},
+		{
+			title:    "tilde range: major and minor",
+			input:    "~1.2",
+			expected: ">=1.2.0 <1.3.0",
+		},
+		{
+			title:    "tilde range: major",
+			input:    "~1",
+			expected: ">=1.0.0 <2.0.0",
+		},
+		{
+			title:    "tilde range: major 0, minor, patch",
+			input:    "~0.2.3",
+			expected: ">=0.2.3 <0.3.0",
+		},
+		{
+			title:    "tilde range: major 0, minor",
+			input:    "~0.2",
+			expected: ">=0.2.0 <0.3.0",
+		},
+		{
+			title:    "tilde range: major 0",
+			input:    "~0",
+			expected: ">=0.0.0 <1.0.0",
+		},
+		{
+			title:    "tilde range: with pre",
+			input:    "~1.2.3-beta.2",
+			expected: ">=1.2.3-beta.2 <1.3.0",
+		},
 	}
 
 	for _, testCase := range testCases {

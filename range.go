@@ -132,6 +132,15 @@ func RangeFromBytes(input []byte) (*Range, error) {
 			continue
 		}
 
+		if bytes.HasPrefix(set, []byte("~")) == true {
+			comparatorSet, err := parseTildeRange(set[1:])
+			if err != nil {
+				return nil, err
+			}
+			comparators = append(comparators, comparatorSet)
+			continue
+		}
+
 		range1, range2, found = bytes.Cut(set, []byte(" "))
 		if found == true {
 			// We have a basic range separated by a space, e.g. `1.0.0 2.0.0`.
@@ -190,6 +199,30 @@ func parseHyphenRange(r1 []byte, r2 []byte) (ComparatorSet, error) {
 	} else {
 		c2.version.major += 1
 		c2.operator = OperatorLessThan
+	}
+
+	return ComparatorSet{c1, c2}, nil
+}
+
+func parseTildeRange(r1 []byte) (ComparatorSet, error) {
+	c1, err := parseComparator(bytes.TrimSpace(r1))
+	if err != nil {
+		return ComparatorSet{}, err
+	}
+	c1.operator = OperatorGreaterThanEqual
+
+	c2 := newComparator()
+	c2.operator = OperatorLessThan
+	c2.version = &Version{
+		major: c1.version.major,
+		minor: c1.version.minor,
+	}
+	if c1.version.patchParsed == true {
+		c2.version.minor += 1
+	} else if c1.version.minorParsed == true {
+		c2.version.minor += 1
+	} else if c1.version.majorParsed == true {
+		c2.version.major += 1
 	}
 
 	return ComparatorSet{c1, c2}, nil
