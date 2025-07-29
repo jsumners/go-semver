@@ -141,6 +141,15 @@ func RangeFromBytes(input []byte) (*Range, error) {
 			continue
 		}
 
+		if bytes.HasPrefix(set, []byte("^")) == true {
+			comparatorSet, err := parseCaretRange(set[1:])
+			if err != nil {
+				return nil, err
+			}
+			comparators = append(comparators, comparatorSet)
+			continue
+		}
+
 		range1, range2, found = bytes.Cut(set, []byte(" "))
 		if found == true {
 			// We have a basic range separated by a space, e.g. `1.0.0 2.0.0`.
@@ -205,7 +214,7 @@ func parseHyphenRange(r1 []byte, r2 []byte) (ComparatorSet, error) {
 }
 
 func parseTildeRange(r1 []byte) (ComparatorSet, error) {
-	c1, err := parseComparator(bytes.TrimSpace(r1))
+	c1, err := parseComparator(r1)
 	if err != nil {
 		return ComparatorSet{}, err
 	}
@@ -222,6 +231,40 @@ func parseTildeRange(r1 []byte) (ComparatorSet, error) {
 	} else if c1.version.minorParsed == true {
 		c2.version.minor += 1
 	} else if c1.version.majorParsed == true {
+		c2.version.major += 1
+	}
+
+	return ComparatorSet{c1, c2}, nil
+}
+
+func parseCaretRange(r1 []byte) (ComparatorSet, error) {
+	c1, err := parseComparator(r1)
+	if err != nil {
+		return ComparatorSet{}, err
+	}
+	c1.operator = OperatorGreaterThanEqual
+
+	c2 := newComparator()
+	c2.operator = OperatorLessThan
+	c2.version = &Version{
+		major: c1.version.major,
+		minor: c1.version.minor,
+		patch: c1.version.patch,
+	}
+	if c1.version.major > 0 {
+		c2.version.major += 1
+		c2.version.minor = 0
+		c2.version.patch = 0
+	} else if c1.version.minor > 0 {
+		c2.version.minor += 1
+		c2.version.patch = 0
+	} else if c2.version.patch > 0 {
+		c2.version.patch += 1
+	} else if c1.version.minorParsed == true && c1.version.partial == true {
+		// (^0.0.x|^0.0) => >=0.0.0 <0.1.0
+		c2.version.minor += 1
+	} else if c1.version.majorParsed == true && c1.version.partial == true {
+		// ^0.x => >=0.0.0 <1.0.0
 		c2.version.major += 1
 	}
 

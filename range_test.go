@@ -139,6 +139,58 @@ func TestRange_RangeFromString(t *testing.T) {
 			input:    "~1.2.3-beta.2",
 			expected: ">=1.2.3-beta.2 <1.3.0",
 		},
+
+		// Caret ranges:
+		{
+			title:    "caret range: major, minor, patch",
+			input:    "^1.2.3",
+			expected: ">=1.2.3 <2.0.0",
+		},
+		{
+			title:    "caret range: major 0, minor, patch",
+			input:    "^0.2.3",
+			expected: ">=0.2.3 <0.3.0",
+		},
+		{
+			title:    "caret range: major 0, minor 0, patch",
+			input:    "^0.0.3",
+			expected: ">=0.0.3 <0.0.4",
+		},
+		{
+			title:    "caret range: major, minor, patch, pre-release",
+			input:    "^1.2.3-beta.2",
+			expected: ">=1.2.3-beta.2 <2.0.0",
+		},
+		{
+			title:    "caret range: major 0, minor 0, patch, pre-release",
+			input:    "^0.0.3-beta",
+			expected: ">=0.0.3-beta <0.0.4",
+		},
+		{
+			title:    "caret range: major, minor, patch-x",
+			input:    "^1.2.x",
+			expected: ">=1.2.0 <2.0.0",
+		},
+		{
+			title:    "caret range: major 0, minor 0, patch-x",
+			input:    "^0.0.x",
+			expected: ">=0.0.0 <0.1.0",
+		},
+		{
+			title:    "caret range: major 0, minor 0",
+			input:    "^0.0",
+			expected: ">=0.0.0 <0.1.0",
+		},
+		{
+			title:    "caret range: major, minor-x",
+			input:    "^1.x",
+			expected: ">=1.0.0 <2.0.0",
+		},
+		{
+			title:    "caret range: major 0, minor-x",
+			input:    "^0.x",
+			expected: ">=0.0.0 <1.0.0",
+		},
 	}
 
 	for _, testCase := range testCases {
